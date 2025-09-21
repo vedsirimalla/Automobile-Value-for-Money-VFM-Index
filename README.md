@@ -1,4 +1,4 @@
-Automotive Value-for-Money (VFM) Index— From Messy Specs to Pricing Insight
+# Automotive Value-for-Money (VFM) Index— From Messy Specs to Pricing Insight
 
 TL;DR: I built an end-to-end pipeline that turns raw car specs into a Value-for-Money (VFM) score and a % over/under-priced signal per variant, using peer-group standardization, a transparent performance composite, and robust price modeling. It’s explainable, resilient to weight changes, and ready for dashboards.
 
