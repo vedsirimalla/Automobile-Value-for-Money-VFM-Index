@@ -237,23 +237,6 @@ perf = 0.35*z_hp + 0.20*z_tq + 0.20*z_vmax + 0.20*z_acc + 0.05*z_eff(ICE only)
 
 ---
 
-## Suggested Repo Structure
-
-```
-.
-├── compute_vfm_exact_cols.py        # end-to-end VFM computation
-├── sensitivity_ablation.py          # (optional) stability analysis
-├── carsdatasetcleaned.csv           # input (not committed if private)
-├── cars_vfm_scores.csv              # output
-├── notebooks/                       # EDA & plots
-├── docs/
-│   ├── peer_scatter.png             # sample charts (optional)
-│   └── vfm_leaderboard.png
-└── README.md
-```
-
----
-
 ## Next Steps
 
 * Add **real efficiency** metrics (mpg, L/100km, kWh/100km) for all fuels.
