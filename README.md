@@ -1,160 +1,272 @@
-# Automotive Value-for-Money (VFM) Index— From Messy Specs to Pricing Insight
+# Value-for-Money (VFM) Index for Cars — From Messy Specs to Pricing Insight
 
-TL;DR: I built an end-to-end pipeline that turns raw car specs into a Value-for-Money (VFM) score and a % over/under-priced signal per variant, using peer-group standardization, a transparent performance composite, and robust price modeling. It’s explainable, resilient to weight changes, and ready for dashboards.
+> **TL;DR**
+>
+> * End-to-end pipeline to convert raw car specs into a **Value-for-Money (VFM)** score and **% over/under-priced** signal per variant.
+> * Uses **peer-group standardization**, a transparent **performance composite**, and **robust price modeling**.
+> * **Explainable** and **stable** under weight changes; ready for dashboards and stakeholder decisions.
 
-Why this project?
+---
 
-In a crowded auto market, buyers and dealers ask the same question:
+## Why This Project?
 
-“Am I getting the best performance for the price I pay?”
+* Car specs (hp, torque, 0–100, top speed) and price are usually shown **separately**.
+* The question customers/dealers actually care about: **“Am I getting the best performance for the price I pay?”**
+* This project computes a **single, defensible VFM metric** and a **peer-based pricing residual** to show **who’s a bargain** and **who’s overpriced**.
 
-Specs (hp, torque, 0–100, top speed) and price are usually shown separately. This project answers with a single, defensible metric: a VFM Index that quantifies performance-per-dollar and flags over/under-pricing vs. true peers.
+---
 
-What the system delivers
+## What the System Delivers
 
-VFM score per variant (higher = more performance per dollar, within peer)
+* **VFM score** per variant (higher = more performance per dollar, within peer).
+* **% Over/Under-priced** vs. peer expectation given performance.
+* **Fair peer comparisons** using Fuel × Seats × Engine-size bands.
+* **Explainable weights & robust stats** (median/IQR, winsorization).
+* **Reproducible outputs** (CSV) + plots; easy to wire into **Power BI** or **Streamlit**.
 
-% Over/Under-priced vs. peer expectation given performance
+---
 
-Fair peer comparisons using Fuel × Seats × Engine-size bands
+## Data (Final Schema)
 
-Explainable weights & robust stats; stability validated via Sensitivity & Ablation tests
-
-Exportable CSV + ready-to-plot diagnostics; simple to wire into Power BI or Streamlit
-
-Data (final schema)
+```
 Company Names, Car Names, Engines, CC/Battery Capacity, HorsePower,
 Total Speed, Performance(0 - 100 )KM/H, Cars Prices, Fuel Types, Seats, Torque, variant_index
+```
 
-Cleaning & normalization highlights
+### Cleaning & Normalization Highlights
 
-Split multi-engine rows into variants (variant_index)
+* **Split multi-engine rows** into separate **variants** (`variant_index`).
+* **Parse units & ranges → numerics**
 
-Parse units & ranges → clean numerics (e.g., “680 hp”, “2.9 sec”, “$14k–$16k”)
+  * Examples: “680 hp” → 680; “2.9 sec” → 2.9; “\$14k–\$16k” → midpoint.
+* **Liters → cc** (e.g., 2.8L → **2800 cc**) to fix displacement after engine split.
+* **Seats**: “2+2” → 4; seat ranges (“4–7”) → **max** (7) to reflect capacity.
+* **Fuel canonicalization (7 buckets)**:
 
-Convert liters to cc (e.g., 2.8L → 2800 cc)
+  * `Petrol, Diesel, Hybrid, PHEV, CNG, Electric, Hydrogen`
+  * Rules: “plug” → **PHEV**; “Gas/Gasoline” → **Petrol**; “Hybrid” in engine → **Hybrid**; “Electric Motor” alone → **Electric**; “Bi-Fuel” → **CNG**.
+* **De-duplication** and type checks for modeling reliability.
 
-Seats: "2+2" → 4; ranges (4–7) → max (7)
+---
 
-Fuel canonicalization (7 buckets): Petrol, Diesel, Hybrid, PHEV, CNG, Electric, Hydrogen with rules (e.g., “plug” → PHEV, “Gas/Gasoline” → Petrol, “Hybrid” in engine → Hybrid, “Electric Motor” alone → Electric, “Bi-Fuel” → CNG)
+## Peer Groups (Fair Apples-to-Apples)
 
-Deduplication and type checks for modeling reliability
-
-Peer groups (fair apples-to-apples)
+```
 peer_id = Fuel | SeatsBand | EngineBand
+```
 
+* **Fuel**: {Petrol, Diesel, Hybrid, PHEV, CNG, Electric, Hydrogen}
+* **SeatsBand**: {2, 4–5, 6–7, 8+}
+* **EngineBand (ICE)**: small <1500 cc, mid 1500–3000 cc, large >3000 cc
+* **Electric/Hydrogen**: use labels `EV` / `Hydrogen` (cc not meaningful)
 
-Fuel: {Petrol, Diesel, Hybrid, PHEV, CNG, Electric, Hydrogen}
+> All standardization and pricing fits happen **within a peer** to ensure fairness.
 
-SeatsBand: {2, 4–5, 6–7, 8+}
+---
 
-EngineBand (ICE): small <1500 cc, mid 1500–3000 cc, large >3000 cc
+## Features & Robust Scaling
 
-Electric/Hydrogen: use labels EV / Hydrogen (cc not meaningful)
+* **Winsorization**: 1%/99% per peer to reduce outlier influence.
+* **Robust z-scores** (median/IQR) per peer:
 
-All standardization and pricing fits happen within a peer to ensure fairness.
+  * $z_x = \dfrac{x - \text{median}_\text{peer}(x)}{\text{IQR}_\text{peer}(x)}$ (fallback to std if IQR = 0).
+* **Acceleration**: invert seconds → use **−acc\_sec** so **faster = higher**.
+* **Efficiency (ICE only)**: use **−cc** (smaller displacement = better proxy).
+* **Price**: use **log(price)** for stability and percent interpretation.
 
-Features & robust scaling
+**Performance Inputs**
 
-We use winsorization (1%/99%) and robust z-scores (median/IQR) within each peer to control outliers and skew.
+* HorsePower (**hp**), Torque (**tq**), Top speed (**vmax**), Acceleration (**acc\_sec**, inverted), **Efficiency proxy** (−cc for ICE; 0 for EV/H2).
 
-Performance inputs
+---
 
-HorsePower (hp)
+## Performance Composite (Transparent Weights)
 
-Torque (tq)
-
-Top speed (vmax)
-
-Acceleration 0–100 km/h in seconds (acc_sec) → we invert (lower is better)
-
-Efficiency proxy for ICE: −cc (smaller is better). For EV/H2, efficiency is set to 0 by design.
-
-Price input
-
-Cars Prices in USD (ranges → midpoint), transformed via log for modeling stability
-
-Performance composite (transparent weights)
+```
 perf = 0.35*z_hp + 0.20*z_tq + 0.20*z_vmax + 0.20*z_acc + 0.05*z_eff(ICE only)
+```
+
+* **EV/Hydrogen** rows use `z_eff = 0` (cc not meaningful); we **don’t renormalize** (sum = 0.95).
+* **Rationale**:
+
+  * hp carries most cross-segment signal;
+  * torque & acceleration matter strongly;
+  * top speed informative but often capped;
+  * cc is a **light** efficiency proxy for ICE.
+
+---
+
+## VFM Scoring (Performance per Dollar)
+
+* **Ratio form**
+
+  * `price_index = exp(z_price)`
+  * `VFM_ratio = perf / price_index`  → **higher is better**
+* **Difference form**
+
+  * `VFM_diff = perf − z_price`
+
+> Use either in the dashboard; both are computed in outputs.
+
+---
+
+## Over/Under-Priced % (Peer Price Model)
+
+* Fit within each peer:
+
+  * `log(price) ≈ intercept + slope * perf`
+  * Robust regression (Huber) when available; else OLS (winsorized inputs).
+* Residual (log space):
+
+  * `price_resid = log_price_actual − log_price_pred`
+* Convert to percent:
+
+  * `overpriced_% = (exp(price_resid) − 1) × 100`
+  * **Positive** = overpriced; **Negative** = underpriced.
+  * **Small peers (<3)**: skip fit; show 0% as “not estimated”.
+
+---
+
+## Example Insight (Same Peer)
+
+**Peer**: `Diesel | 6–7 | mid`
+
+| Model               |  perf |  Actual |  Expected | Residual (log) | Overpriced % |
+| ------------------- | ----: | ------: | --------: | -------------: | -----------: |
+| **MAHINDRA XUV500** | 0.125 | \$18.4k | \~\$33.4k |         −0.596 |   **−44.9%** |
+| **Ford Everest**    | 0.781 | \$52.0k | \~\$44.1k |         +0.166 |   **+18.1%** |
+
+* **Everest** performs better but is priced **even higher than expected** → \~**18% overpriced**.
+* **XUV500** is modestly above-median on perf but **priced far below expected** → \~**45% under-priced**.
+* A **peer scatter** (log-price vs `perf`) makes this obvious to pricing teams.
+
+---
+
+## Sensitivity & Ablation Results (Robustness)
+
+### What We Tested
+
+* **Sensitivity**: ±10% weight tweaks (one feature at a time) with renormalization; recompute VFM and compare to baseline via:
+
+  * **Spearman rank correlation** (global rank stability)
+  * **Top-20 overlap & Jaccard** (leaderboard stability)
+  * **Avg |Δ rank|** within Top-20
+* **Ablation**: drop one feature (set weight to 0), redistribute the remainder, re-rank, compute same metrics.
+
+### Key Takeaways
+
+* **Rankings are very stable** under ±10% tweaks.
+
+  * High **Spearman**, near-complete **Top-20 overlap**, minimal **Top-20 churn**.
+* **Importance order matches domain logic**:
+
+  * **Drop hp** → biggest churn;
+  * **Drop acceleration/torque** → noticeable churn (segment-dependent);
+  * **Drop top speed** → small–moderate churn;
+  * **Drop efficiency (cc)** → least change.
+
+### Implication
+
+* The VFM index is **explainable and resilient**—safe for **pricing**, **product**, and **marketing** decisions.
+* Optional **segment-aware tuning**:
+
+  * Diesel/7-seater peers → +5–10% **torque**;
+  * Sporty petrol peers → +5–10% **acceleration**;
+  * Keep **cc weight = 0.05** for ICE (until real economy metrics are added), and **0** for EV/H2.
+
+---
+
+## Tools & Technologies
+
+* **Python 3.x**
+* **Pandas, NumPy** — data wrangling, grouping, winsorization, robust z
+* **scikit-learn** — `HuberRegressor` for robust fits (fallback OLS via `numpy.polyfit`)
+* **Matplotlib** — EDA & diagnostics
+* **Regex parsing** — unit/range normalization
+* **Jupyter/Colab** — exploration & reproducibility
+* *(Optional)* **Power BI** / **Streamlit** — dashboards for VFM, peer scatter, price residuals
+
+---
+
+## How to Run
+
+1. **Place cleaned dataset** at repo root as `carsdatasetcleaned.csv`.
+
+2. **Compute VFM** (CLI- & notebook-friendly):
+
+   ```bash
+   python compute_vfm_exact_cols.py --in carsdatasetcleaned.csv --out cars_vfm_scores.csv
+   ```
+
+   **Output**: `cars_vfm_scores.csv` with:
+
+   ```
+   Company, Model, Fuel, SeatsBand, EngineBand, peer_id,
+   hp, tq, vmax, acc_sec, cc, price, log_price,
+   z_hp, z_tq, z_vmax, z_acc, z_eff, z_price,
+   perf, price_index, VFM_ratio, VFM_diff,
+   price_pred, price_resid, overpriced_pct
+   ```
+
+3. **Sensitivity & Ablation** (optional; produces baseline Top-20, sensitivity, ablation tables):
+
+   ```bash
+   python sensitivity_ablation.py
+   ```
+
+---
+
+## Interpreting the Outputs (Cheat Sheet)
+
+* **perf**: peer-standardized performance (higher = better).
+* **z\_price / price\_index**: how pricey vs peer (higher = more expensive).
+* **VFM\_ratio / VFM\_diff**: performance adjusted for price (higher = better value).
+* **overpriced\_%**: price vs peer expectation at your performance.
+
+  * Positive → **over-priced**
+  * Negative → **under-priced**
+
+---
+
+## Business Impact
+
+* **Pricing**: flag trims ±10–25% vs peers; adjust list prices or run targeted promotions.
+* **Product**: identify **portfolio gaps** (e.g., no high-VFM mid-range EV with 4–5 seats).
+* **Marketing**: honest, data-backed claims (“best hp-per-dollar in segment”).
+* **Sales**: peer scatter & residuals for transparent, persuasive conversations.
+
+---
+
+## Suggested Repo Structure
+
+```
+.
+├── compute_vfm_exact_cols.py        # end-to-end VFM computation
+├── sensitivity_ablation.py          # (optional) stability analysis
+├── carsdatasetcleaned.csv           # input (not committed if private)
+├── cars_vfm_scores.csv              # output
+├── notebooks/                       # EDA & plots
+├── docs/
+│   ├── peer_scatter.png             # sample charts (optional)
+│   └── vfm_leaderboard.png
+└── README.md
+```
+
+---
+
+## Next Steps
+
+* Add **real efficiency** metrics (mpg, L/100km, kWh/100km) for all fuels.
+* Learn **segment-specific weights** from price/sales (constrained regression) or regularize.
+* Regionalize with **market effects** (taxes, incentives, brand equity).
+* Attach **confidence intervals** to over/under-price estimates (bootstrap).
+* **Time-series** tracking of VFM and residuals.
+
+---
 
 
-EV/Hydrogen rows use z_eff = 0 (cc not meaningful); we don’t renormalize (sum = 0.95)
+---
 
-Rationale: hp carries most signal; torque & acceleration matter strongly; top speed is informative but capped in many peers; cc is a light nudge toward efficiency for ICE.
+## Want It Live?
 
-VFM scoring (performance per dollar)
-
-Two complementary forms (use either; both are computed):
-
-Ratio:
-price_index = exp(z_price)
-VFM_ratio = perf / price_index → higher is better
-
-Difference:
-VFM_diff = perf − z_price
-
-Over/Under-priced % (peer price model)
-
-Within each peer, fit:
-
-log(price) ≈ intercept + slope * perf
-
-
-Fit robustly (Huber) when possible; else OLS (winsorized inputs)
-
-Residual in log space: price_resid = log_price_actual − log_price_pred
-
-Convert to %:
-
-overpriced_% = (exp(price_resid) − 1) × 100
-
-
-Positive = over-priced; negative = under-priced
-(Small peers <3 models → skip fit; % shows 0 as “not estimated”)
-
-Example insight (same peer)
-
-Peer: Diesel | 6–7 | mid
-
-Model	perf	Actual	Expected	Residual (log)	Overpriced %
-MAHINDRA XUV500	0.125	$18.4k	~$33.4k	−0.596	−44.9%
-Ford Everest	0.781	$52.0k	~$44.1k	+0.166	+18.1%
-
-Everest performs better but is priced even higher than expected → ~18% overpriced
-
-XUV500 is modestly above-median on perf but priced far below expected → ~45% under-priced
-
-A peer scatter (log-price vs perf) makes this immediately visible to pricing teams.
-
-Sensitivity & Ablation results (robustness)
-
-What we tested
-
-Sensitivity: ±10% weight tweaks (one feature at a time) with renormalization; compare rankings vs. baseline using Spearman, Top-20 overlap/Jaccard, and avg |Δ rank|.
-
-Ablation: drop one feature (set weight to 0), redistribute the remainder, re-rank, and compute the same stability metrics.
-
-Key takeaways
-
-Rankings are very stable. Across ±10% tweaks, Spearman correlations stay high and Top-20 overlap is near complete → leaders don’t reshuffle under reasonable weight changes.
-
-Importance order aligns with domain logic:
-HP removal causes the most churn, then Acceleration/Torque, then Top speed (moderate), and cc efficiency has the smallest impact (as expected with a 0.05 weight, 0 for EV/H2).
-
-Implication: the VFM index is explainable and resilient—safe for pricing, product, and marketing decisions.
-
-Tools & technologies
-
-Python 3.x
-
-Pandas, NumPy — data wrangling, grouping, winsorization, robust z
-
-scikit-learn — HuberRegressor (robust price fit); fallback OLS via numpy.polyfit
-
-Matplotlib — EDA & diagnostic charts
-
-Regex parsing — unit/range normalization
-
-Jupyter/Colab — exploration & reproducibility
-
-(Optional) Power BI / Streamlit — dashboards for VFM leaderboards, peer scatter, and price residuals
+* I can add a minimal **Streamlit app**: filter peers, show **VFM leaderboards**, plot **peer scatters** with regression lines, and badge **% over/under-priced** per model.
