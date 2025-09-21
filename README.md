@@ -188,34 +188,6 @@ perf = 0.35*z_hp + 0.20*z_tq + 0.20*z_vmax + 0.20*z_acc + 0.05*z_eff(ICE only)
 
 ---
 
-## How to Run
-
-1. **Place cleaned dataset** at repo root as `carsdatasetcleaned.csv`.
-
-2. **Compute VFM** (CLI- & notebook-friendly):
-
-   ```bash
-   python compute_vfm_exact_cols.py --in carsdatasetcleaned.csv --out cars_vfm_scores.csv
-   ```
-
-   **Output**: `cars_vfm_scores.csv` with:
-
-   ```
-   Company, Model, Fuel, SeatsBand, EngineBand, peer_id,
-   hp, tq, vmax, acc_sec, cc, price, log_price,
-   z_hp, z_tq, z_vmax, z_acc, z_eff, z_price,
-   perf, price_index, VFM_ratio, VFM_diff,
-   price_pred, price_resid, overpriced_pct
-   ```
-
-3. **Sensitivity & Ablation** (optional; produces baseline Top-20, sensitivity, ablation tables):
-
-   ```bash
-   python sensitivity_ablation.py
-   ```
-
----
-
 ## Interpreting the Outputs (Cheat Sheet)
 
 * **perf**: peer-standardized performance (higher = better).
