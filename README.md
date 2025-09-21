@@ -216,12 +216,3 @@ perf = 0.35*z_hp + 0.20*z_tq + 0.20*z_vmax + 0.20*z_acc + 0.05*z_eff(ICE only)
 * Regionalize with **market effects** (taxes, incentives, brand equity).
 * Attach **confidence intervals** to over/under-price estimates (bootstrap).
 * **Time-series** tracking of VFM and residuals.
-
----
-
-
----
-
-## Want It Live?
-
-* I can add a minimal **Streamlit app**: filter peers, show **VFM leaderboards**, plot **peer scatters** with regression lines, and badge **% over/under-priced** per model.
