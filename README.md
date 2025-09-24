@@ -67,9 +67,6 @@ peer_id = Fuel | SeatsBand | EngineBand
 ## Features & Robust Scaling
 
 * **Winsorization**: 1%/99% per peer to reduce outlier influence.
-* **Robust z-scores** (median/IQR) per peer:
-
-  * $z_x = \dfrac{x - \text{median}_\text{peer}(x)}{\text{IQR}_\text{peer}(x)}$ (fallback to std if IQR = 0).
 * **Acceleration**: invert seconds → use **−acc\_sec** so **faster = higher**.
 * **Efficiency (ICE only)**: use **−cc** (smaller displacement = better proxy).
 * **Price**: use **log(price)** for stability and percent interpretation.
